@@ -1,0 +1,174 @@
+import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
+// import "../../styles.css";
+import emailjs from "emailjs-com";
+import { app } from "../../firebaseConfig";
+import Modal from "./modal";
+import { useEffect } from "react";
+import { useSelector } from "react-redux";
+import { useHistory, useLocation } from "react-router";
+import convertDate from './ConvertDate'
+const MyOrders = () => {
+    const customer = useSelector((state) => state.user);
+    const [data, setData] = useState(null);
+    const [dataModal, setDataModal] = useState(null);
+    const history = useHistory();
+    console.log(customer);
+    
+    useEffect(() => {
+        if (!customer.currentUser.customerId) {
+            history.push("/login");
+            return
+        }
+        const db_Transactions = app
+        .database()
+        .ref()
+        .child(`/transactions`)
+        .orderByChild("customerId")
+        .equalTo(customer.currentUser.customerId);
+
+        db_Transactions.once("value", function (snap) {
+            if (snap.val()) {
+                setData(Object.values(snap.val()));
+            }
+        });
+    }, []);
+    const renderStatus = (status) => {
+        let returnVal = "";
+        switch (status) {
+            case "pending":
+                returnVal = "Chờ xử lý";
+                break;
+            case "driverPending":
+                returnVal = "Chờ xử lý";
+                break;
+            case "inProgress":
+                returnVal = "Đang giao";
+                break;
+            case "completed":
+                returnVal = "Đã hoàn tất";
+                break;
+            case "canceled":
+                returnVal = "Đã hủy";
+                break;
+            default:
+                break;
+        }
+        return returnVal;
+    };
+    const handleCanel = (id) => {
+        if (confirm("Xác nhận hủy?")) {
+            const db_Transactions = app
+                .database()
+                .ref()
+                .child(`/transactions/${id}`);
+            db_Transactions
+                .update({
+                    status: "canceled",
+                })
+                .then(() => {
+                    alert("Hủy yêu cầu thành công!")
+                    const newData = data.map((item) => {
+                        if (item.transactionId === id) {
+                            return { ...item, status: "canceled" };
+                        }
+                        return item;
+                    });
+                    setData(newData);
+                    setDataModal(null)
+                });
+        }
+    };
+
+
+    return (
+        <>
+            <section
+                className="navbar_sect"
+                style={{ backgroundImage: "url(/images/bg5.jpg)" }}
+            >
+                <div className="contact_sect">
+                    <div className="container-fluid">
+                        <div className="inner_container">
+                            <h1>VẬN CHUYỂN HÀNG</h1>
+                            <p>
+                                <Link to="/home">Trang chủ</Link>
+                                &ensp;/&ensp;Đơn hàng của tôi
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="contact-sect" style={{ padding: "60px 0" }}>
+                <div class="container">
+                    <table class="his-orders table table-striped">
+                        <thead>
+                            <tr className="text-center">
+                                <th scope="col">STT</th>
+                                <th scope="col">Ngày tạo</th>
+                                <th scope="col">Mã đơn hàng</th>
+                                <th scope="col">Tên sản phẩm</th>
+                                <th scope="col">Trạng thái</th>
+                                <th scope="col">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data &&
+                                data.map((val, index) => {
+                                    const className =
+                                        val.status === "pending"
+                                            ? "badge-warning"
+                                            : val.status === "inProgress"
+                                            ? "badge-primary"
+                                            : val.status === "completed"
+                                            ? "badge-success"
+                                            : "badge-danger";
+                                    return (
+                                        <tr className="text-center" key={index}>
+                                            <th scope="row">{index + 1}</th>
+                                            <td>{convertDate(val.initialTime)}</td>
+                                            <td>{val.transportCode}</td>
+                                            <td>
+                                                {
+                                                    val.shippingInfo.productInfo
+                                                        .productName
+                                                }
+                                            </td>
+                                            <td>
+                                                <span style={{minWidth: '68px'}}
+                                                    class={`badge ${className}`}
+                                                >
+                                                    {renderStatus(val.status)}
+                                                </span>
+                                            </td>
+                                            <td className="text-center">
+                                                
+                                                <button
+                                                    class={`btn btn-primary`}
+                                                    onClick={() => {
+                                                        setDataModal(val);
+                                                    }}
+                                                >
+                                                    Chi tiết
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {dataModal && (
+                <Modal
+                    transaction={dataModal}
+                    onClose={() => {
+                        setDataModal(null);
+                    }}
+                    handleCanel={handleCanel}
+                />
+            )}
+        </>
+    );
+};
+export default MyOrders;
